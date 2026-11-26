@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src ws://127.0.0.1:* ws://localhost:*">
+  <title>DotShell</title>
+  <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="topbar">
+    <span class="title">DotShell</span>
+    <span class="chapter">Ch.0 프로토타입</span>
+    <span class="spacer"></span>
+    <span class="label">현재 위치</span>
+    <span id="cwd">-</span>
+  </header>
+
+  <main id="world">
+    <canvas id="world-canvas"></canvas>
+    <div id="world-message"></div>
+  </main>
+
+  <aside id="side">
+    <section class="card">
+      <h2>퀘스트</h2>
+      <p>아래 터미널은 진짜 우분투 bash입니다. 명령어를 치면 도트 세계가 바뀝니다.</p>
+      <ul class="hints">
+        <li><code>ls -a</code> 숨겨진 물건까지 보기</li>
+        <li><code>cd dungeon</code> 문을 지나 이동</li>
+        <li><code>touch note.txt</code> 새 두루마리</li>
+        <li><code>mkdir room</code> 새 방</li>
+        <li><code>rm note.txt</code> 부수기</li>
+      </ul>
+    </section>
+    <section class="card log-card">
+      <h2>명령 기록</h2>
+      <ol id="command-log"></ol>
+    </section>
+  </aside>
+
+  <section id="terminal-wrap">
+    <div id="terminal"></div>
+    <div id="overlay" class="visible">
+      <div id="overlay-text">엔진에 연결하는 중...</div>
+    </div>
+  </section>
+
+  <script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
+  <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <script src="world.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
