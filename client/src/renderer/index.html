@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src ws://127.0.0.1:* ws://localhost:*">
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ws://127.0.0.1:* ws://localhost:*">
   <title>DotShell</title>
   <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css">
   <link rel="stylesheet" href="style.css">
@@ -11,28 +11,52 @@
 <body>
   <header id="topbar">
     <span class="title">DotShell</span>
-    <span class="chapter">Ch.0 프로토타입</span>
+    <span id="stage-name" class="chapter">서버 왕국 수호</span>
     <span class="spacer"></span>
     <span class="label">현재 위치</span>
     <span id="cwd">-</span>
   </header>
 
-  <main id="world">
-    <canvas id="world-canvas"></canvas>
-    <div id="world-message"></div>
+  <main id="world-wrap">
+    <div id="world"></div>
+    <div id="toast" class="hidden"></div>
+    <div id="spellbook" class="hidden">
+      <div class="book">
+        <header>
+          <h2><img src="assets/sprites/scroll.png" alt="" class="icon"> 명령어 주문서</h2>
+          <span class="hint">F1 · Esc 로 닫기 — 열어 둔 채로 터미널에 계속 입력할 수 있어요</span>
+        </header>
+        <div id="cards"></div>
+      </div>
+    </div>
+    <div id="result" class="hidden">
+      <div class="result-box">
+        <h1 id="result-title"></h1>
+        <ul id="result-stars"></ul>
+        <p id="result-stats"></p>
+        <button id="retry" type="button" tabindex="-1">다시 도전</button>
+      </div>
+    </div>
   </main>
 
   <aside id="side">
+    <button id="spellbook-btn" type="button" tabindex="-1">
+      <img src="assets/sprites/scroll.png" alt="" class="icon">
+      <span>명령어 주문서</span>
+      <kbd>F1</kbd>
+      <span id="spellbook-badge" class="badge hidden">NEW</span>
+    </button>
     <section class="card">
       <h2>퀘스트</h2>
-      <p>아래 터미널은 진짜 우분투 bash입니다. 명령어를 치면 도트 세계가 바뀝니다.</p>
-      <ul class="hints">
-        <li><code>ls -a</code> 숨겨진 물건까지 보기</li>
-        <li><code>cd dungeon</code> 문을 지나 이동</li>
-        <li><code>touch note.txt</code> 새 두루마리</li>
-        <li><code>mkdir room</code> 새 방</li>
-        <li><code>rm note.txt</code> 부수기</li>
+      <div id="quest-title">-</div>
+      <ul class="goals">
+        <li>서버 코어를 지켜라</li>
+        <li id="goal-wave">웨이브 0 / 0</li>
       </ul>
+    </section>
+    <section class="card daemon-card">
+      <h2><img src="assets/sprites/daemon.png" alt="" class="icon"> 데몬</h2>
+      <p id="daemon-line">...</p>
     </section>
     <section class="card log-card">
       <h2>명령 기록</h2>
@@ -49,7 +73,8 @@
 
   <script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
   <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
-  <script src="world.js"></script>
+  <script src="../../node_modules/phaser/dist/phaser.min.js"></script>
+  <script src="game.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

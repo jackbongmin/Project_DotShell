@@ -1,4 +1,4 @@
-// DotShell Electron 메인 프로세스: 게임 창을 띄운다.
+﻿// DotShell Electron 메인 프로세스: 게임 창을 띄운다.
 const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
 
@@ -7,11 +7,11 @@ const ENGINE_URL = process.env.DOTSHELL_ENGINE_URL || 'ws://127.0.0.1:8730/ws/te
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
-    height: 860,
+    height: 900,
     minWidth: 960,
     minHeight: 640,
     title: 'DotShell',
-    backgroundColor: '#0f1020',
+    backgroundColor: '#1a1c2c',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
