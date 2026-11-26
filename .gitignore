@@ -1,0 +1,13 @@
+# Java 소켓 임시 폴더 (README의 문제 해결 참고)
+.tmp/
+
+# client
+client/node_modules/
+client/dist/
+client/out/
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
