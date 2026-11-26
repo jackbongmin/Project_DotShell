@@ -16,6 +16,8 @@ import org.springframework.web.socket.WebSocketSession;
 
 import com.dotshell.engine.container.DirectoryEntry;
 import com.dotshell.engine.container.PlayerContainerService;
+import com.dotshell.engine.game.StageRunner;
+import com.dotshell.engine.game.StageService;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.model.Frame;
@@ -35,14 +37,16 @@ class TerminalSession {
 
 	private static final Logger log = LoggerFactory.getLogger(TerminalSession.class);
 
-	private static final String BANNER = "\u001b[1;33mDotShell 프로토타입\u001b[0m\r\n"
-			+ "진짜 우분투 bash에 연결되었습니다. \u001b[36mls\u001b[0m, \u001b[36mcd dungeon\u001b[0m, "
-			+ "\u001b[36mcat welcome.txt\u001b[0m 등을 입력해 보세요.\r\n\r\n";
+	private static final String BANNER = "\u001b[1;33m[DotShell] 서버 왕국 수호\u001b[0m\r\n"
+			+ "이 터미널은 진짜 우분투 bash입니다. 버그가 오면 \u001b[36mps aux\u001b[0m 로 정찰하고 "
+			+ "\u001b[36mkill <PID>\u001b[0m 로 처치하세요.\r\n\r\n";
 
 	private final WebSocketSession ws;
 	private final PlayerContainerService containers;
+	private final StageService stages;
 	private final DockerClient docker;
 	private final JsonMapper json;
+	private volatile StageRunner runner;
 
 	private final String id = UUID.randomUUID().toString().substring(0, 8);
 	private final QueueInputStream stdin = new QueueInputStream();
@@ -59,9 +63,11 @@ class TerminalSession {
 	private volatile int rows = 24;
 	private long lastHistory = -1; // 스냅샷 스레드에서만 접근
 
-	TerminalSession(WebSocketSession ws, PlayerContainerService containers, DockerClient docker, JsonMapper json) {
+	TerminalSession(WebSocketSession ws, PlayerContainerService containers, StageService stages,
+			DockerClient docker, JsonMapper json) {
 		this.ws = ws;
 		this.containers = containers;
+		this.stages = stages;
 		this.docker = docker;
 		this.json = json;
 	}
@@ -85,6 +91,10 @@ class TerminalSession {
 			}
 			attachShell();
 			sendJson(new ServerMessages.Status("ready", "준비 완료"));
+			runner = stages.start(created, this::sendJson);
+			if (closed) {
+				runner.stop();
+			}
 		} catch (RuntimeException e) {
 			log.error("세션 {} 시작 실패", id, e);
 			sendJson(new ServerMessages.Error(describe(e)));
@@ -187,6 +197,10 @@ class TerminalSession {
 	private void publishState(PromptSignal signal) {
 		boolean newCommand = lastHistory >= 0 && signal.historyNumber() != lastHistory;
 		lastHistory = signal.historyNumber();
+		StageRunner stageRunner = runner;
+		if (newCommand && stageRunner != null) {
+			stageRunner.onCommand(signal.command());
+		}
 		try {
 			List<DirectoryEntry> entries = containers.listDirectory(containerId, signal.cwd());
 			sendJson(new ServerMessages.State(signal, newCommand, entries));
@@ -194,6 +208,13 @@ class TerminalSession {
 			if (!closed) {
 				log.warn("세션 {} 상태 조회 실패: {}", id, e.getMessage());
 			}
+		}
+	}
+
+	void restartStage() {
+		StageRunner stageRunner = runner;
+		if (stageRunner != null) {
+			stageRunner.restart();
 		}
 	}
 
@@ -230,6 +251,10 @@ class TerminalSession {
 			return;
 		}
 		closed = true;
+		StageRunner stageRunner = runner;
+		if (stageRunner != null) {
+			stageRunner.stop();
+		}
 		stdin.close();
 		ResultCallback.Adapter<Frame> callback = shellCallback;
 		if (callback != null) {

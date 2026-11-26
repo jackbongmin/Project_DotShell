@@ -1,0 +1,52 @@
+{
+  "id": "1-1",
+  "title": "버그 습격",
+  "coreHp": 100,
+  "introSeconds": 9,
+  "breakSeconds": 6,
+  "parCommands": 8,
+  "intro": [
+    "큰일이야! 서버 코어 쪽으로 버그들이 몰려오고 있어.",
+    "버그는 진짜 프로세스야. 터미널에서 정찰하고 처치하자!"
+  ],
+  "startCards": ["ls", "cd"],
+  "cards": {
+    "ls": { "usage": "ls -a", "desc": "방을 밝혀 물건(파일)을 본다. -a는 숨은 보물까지" },
+    "cd": { "usage": "cd <방>", "desc": "문을 지나 다른 방(디렉터리)으로 이동" },
+    "ps": { "usage": "ps aux", "desc": "프로세스(몬스터)를 정찰해 PID를 알아낸다" },
+    "kill": { "usage": "kill <PID>", "desc": "PID를 겨눠 몬스터 하나를 정확히 처치" },
+    "pkill": { "usage": "pkill bug", "desc": "이름을 불러 같은 몬스터를 한꺼번에 처치" },
+    "pstree": { "usage": "pstree -p", "desc": "부모-자식 관계를 나무로 그려 본다" }
+  },
+  "monsters": {
+    "bug": {
+      "label": "버그",
+      "args": ["infinity"],
+      "travelSeconds": 45,
+      "dps": 5
+    },
+    "bug-queen": {
+      "label": "버그 여왕",
+      "args": [],
+      "travelSeconds": 80,
+      "dps": 12
+    }
+  },
+  "waves": [
+    {
+      "spawns": [{ "kind": "bug", "count": 2, "intervalSeconds": 4 }],
+      "hint": "ps aux 로 버그의 PID를 알아내고, kill <PID> 로 잡아 봐!",
+      "unlock": ["ps", "kill"]
+    },
+    {
+      "spawns": [{ "kind": "bug", "count": 5, "intervalSeconds": 1.2 }],
+      "hint": "이번엔 많아! pkill bug 로 이름을 불러서 한꺼번에 잡자.",
+      "unlock": ["pkill"]
+    },
+    {
+      "spawns": [{ "kind": "bug-queen", "count": 1, "intervalSeconds": 0 }],
+      "hint": "여왕이 새끼를 계속 낳아! pstree -p 로 부모를 찾아서 여왕을 쓰러뜨려.",
+      "unlock": ["pstree"]
+    }
+  ]
+}

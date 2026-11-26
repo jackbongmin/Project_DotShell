@@ -1,6 +1,7 @@
 package com.dotshell.engine.container;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +45,9 @@ public class PlayerContainerService {
 	public static final String PLAYER_USER = "hero";
 	public static final String PLAYER_HOME = "/home/hero";
 	private static final int MAX_ENTRIES = 200;
+	public static final String MONSTER_DIR = "/usr/local/lib/dotshell/monsters/";
+	private static final String WATCHTOWER = "/usr/local/lib/dotshell/watchtower";
+	private static final String RIFT = "/run/dotshell/rift";
 
 	private final DockerClient docker;
 	private final PlayerProperties props;
@@ -110,6 +115,8 @@ public class PlayerContainerService {
 				.withMemorySwap(memoryBytes)
 				.withNanoCPUs((long) (props.cpus() * 1_000_000_000L))
 				.withPidsLimit(props.pidsLimit())
+				// PID 1을 docker-init으로 둬서 고아가 된 몬스터 프로세스를 거둔다 (의도치 않은 좀비 방지).
+				.withInit(true)
 				// 외부 인터넷 차단. Gitea·Floci를 붙일 때 게임 전용 내부 네트워크로 바꾼다.
 				.withNetworkMode("none");
 
@@ -155,10 +162,62 @@ public class PlayerContainerService {
 		return entries;
 	}
 
+	/**
+	 * 균열(rift)에 소환 요청을 넣는다. 균열이 몬스터를 자기 자식으로, 플레이어(hero) 소유로 띄운다.
+	 * 그래서 pstree 에 보이고, 플레이어가 sudo 없이 kill 할 수 있다.
+	 */
+	public void summon(String containerId, String monster, List<String> args) {
+		List<String> cmd = new ArrayList<>(List.of("/bin/sh", "-c", "printf '%s\\n' \"$*\" > " + RIFT, "summon", monster));
+		cmd.addAll(args);
+		execCaptureAs(containerId, "root", cmd.toArray(String[]::new));
+	}
+
+	/** 모든 몬스터를 강제로 없앤다 (패배·재시작 정리용). */
+	public void killAllMonsters(String containerId) {
+		execCaptureAs(containerId, "root", "pkill", "-KILL", "-f", MONSTER_DIR);
+	}
+
+	/**
+	 * 감시탑을 띄워 0.5초마다 프로세스 목록을 받는다.
+	 * 반환된 Closeable을 닫으면 스트림을 끊는다.
+	 */
+	public Closeable watchProcesses(String containerId, Consumer<List<ProcessInfo>> listener) {
+		String execId = docker.execCreateCmd(containerId)
+				.withUser("root")
+				.withAttachStdout(true)
+				.withCmd(WATCHTOWER)
+				.exec()
+				.getId();
+		StringBuilder buffer = new StringBuilder();
+		return docker.execStartCmd(execId).exec(new ResultCallback.Adapter<Frame>() {
+			@Override
+			public void onNext(Frame frame) {
+				buffer.append(new String(frame.getPayload(), StandardCharsets.UTF_8));
+				int end;
+				while ((end = buffer.indexOf("@@\n")) >= 0) {
+					String block = buffer.substring(0, end);
+					buffer.delete(0, end + 3);
+					List<ProcessInfo> list = new ArrayList<>();
+					for (String line : block.split("\n")) {
+						ProcessInfo info = ProcessInfo.parse(line);
+						if (info != null) {
+							list.add(info);
+						}
+					}
+					listener.accept(list);
+				}
+			}
+		});
+	}
+
 	/** 플레이어 권한으로 명령을 실행하고 표준 출력을 돌려준다. 셸을 거치지 않으므로 인자 따옴표 걱정이 없다. */
 	public String execCapture(String containerId, String... cmd) {
+		return execCaptureAs(containerId, PLAYER_USER, cmd);
+	}
+
+	public String execCaptureAs(String containerId, String user, String... cmd) {
 		String execId = docker.execCreateCmd(containerId)
-				.withUser(PLAYER_USER)
+				.withUser(user)
 				.withAttachStdout(true)
 				.withAttachStderr(true)
 				.withCmd(cmd)
