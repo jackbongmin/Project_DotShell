@@ -37,9 +37,10 @@ class TerminalSession {
 
 	private static final Logger log = LoggerFactory.getLogger(TerminalSession.class);
 
+	private static final String RIFT_DIR = PlayerContainerService.PLAYER_HOME + "/rift";
 	private static final String BANNER = "\u001b[1;33m[DotShell] 서버 왕국 수호\u001b[0m\r\n"
-			+ "이 터미널은 진짜 우분투 bash입니다. 버그가 오면 \u001b[36mps aux\u001b[0m 로 정찰하고 "
-			+ "\u001b[36mkill <PID>\u001b[0m 로 처치하세요.\r\n\r\n";
+			+ "이 터미널은 진짜 우분투 bash입니다. \u001b[36mls\u001b[0m 로 마을을 둘러보고 "
+			+ "\u001b[36mcat welcome.txt\u001b[0m 로 게시판을 읽어 보세요.\r\n\r\n";
 
 	private final WebSocketSession ws;
 	private final PlayerContainerService containers;
@@ -91,10 +92,7 @@ class TerminalSession {
 			}
 			attachShell();
 			sendJson(new ServerMessages.Status("ready", "준비 완료"));
-			runner = stages.start(created, this::sendJson);
-			if (closed) {
-				runner.stop();
-			}
+			// 스테이지는 플레이어가 cd rift 로 균열에 들어갈 때 시작한다 (publishState 참고).
 		} catch (RuntimeException e) {
 			log.error("세션 {} 시작 실패", id, e);
 			sendJson(new ServerMessages.Error(describe(e)));
@@ -208,6 +206,21 @@ class TerminalSession {
 			if (!closed) {
 				log.warn("세션 {} 상태 조회 실패: {}", id, e.getMessage());
 			}
+		}
+		updateStage(signal.cwd());
+	}
+
+	/** 균열(~/rift) 안에 있으면 스테이지를 돌리고, 밖으로 나오면 끝낸다. 스냅샷 스레드에서만 불린다. */
+	private void updateStage(String cwd) {
+		boolean inRift = cwd.equals(RIFT_DIR) || cwd.startsWith(RIFT_DIR + "/");
+		if (inRift && runner == null && !closed) {
+			log.info("세션 {} 균열 진입 → 스테이지 시작", id);
+			runner = stages.start(containerId, this::sendJson);
+		} else if (!inRift && runner != null) {
+			log.info("세션 {} 균열 이탈 → 스테이지 종료", id);
+			runner.stop();
+			runner = null;
+			containers.killAllMonsters(containerId);
 		}
 	}
 

@@ -282,7 +282,7 @@ public class StageRunner {
 		send.accept(new GameMessages.Result("result", victory ? "victory" : "defeat", now - stageStartedAt,
 				commands, kills, hp, stage.coreHp(), stars));
 		send.accept(new GameMessages.Announce(victory
-				? "해냈어! 서버 코어를 지켜 냈어."
+				? "해냈어! 서버 코어를 지켜 냈어. cd .. 로 마을에 돌아가자."
 				: "서버 코어가 쓰러졌어... 다시 해 보자!", List.of()));
 		sendWorld(now);
 		log.info("스테이지 {} {}: 명령 {}개, 처치 {}", stage.id(), victory ? "승리" : "패배", commands, kills);
