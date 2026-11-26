@@ -1,0 +1,21 @@
+#!/bin/bash
+# 균열(rift): 몬스터가 쏟아져 나오는 동굴. 컨테이너의 첫 프로세스(root)로 돈다.
+#
+# 엔진이 /run/dotshell/rift 에 "이름 인자..." 한 줄을 쓰면 그 몬스터를 플레이어(hero) 소유로 소환한다.
+#  - 몬스터는 이 프로세스의 자식이라 pstree -p 에 docker-init ─ rift ─ bug 로 보인다.
+#  - 균열은 root 소유라 플레이어가 없앨 수 없고, 몬스터는 hero 소유라 sudo 없이 kill 할 수 있다.
+
+MONSTERS=/usr/local/lib/dotshell/monsters
+RIFT=/run/dotshell/rift
+
+mkdir -p /run/dotshell
+rm -f "$RIFT"
+mkfifo -m 600 "$RIFT"
+
+while true; do
+  while read -r name args; do
+    [[ "$name" =~ ^[a-z-]+$ ]] && [ -x "$MONSTERS/$name" ] || continue
+    # shellcheck disable=SC2086
+    setpriv --reuid=hero --regid=hero --init-groups -- "$MONSTERS/$name" $args &
+  done < "$RIFT"
+done

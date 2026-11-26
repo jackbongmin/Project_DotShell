@@ -1,0 +1,11 @@
+#!/bin/bash
+# 감시탑: 0.5초마다 컨테이너의 프로세스 목록을 엔진에 보낸다.
+# 엔진이 root로 실행하므로 플레이어(hero)는 끌 수 없다.
+#
+# 출력 형식: 한 줄에 "PID PPID STAT COMM", 목록 끝에 "@@"
+
+while true; do
+  ps -e -o pid=,ppid=,stat=,comm=
+  echo '@@'
+  sleep 0.5
+done

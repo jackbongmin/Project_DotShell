@@ -1,0 +1,18 @@
+#!/bin/bash
+# 버그 여왕: 몇 초마다 새끼 버그를 낳는다. 새끼만 잡으면 계속 다시 생긴다.
+#  - 여왕을 kill(TERM)로 쓰러뜨리면 새끼들도 함께 사라진다.
+#  - kill -9로 쓰러뜨리면 신호를 받을 틈이 없어 새끼들이 고아로 남는다.
+
+MONSTERS=/usr/local/lib/dotshell/monsters
+MAX_CHILDREN=3
+
+trap 'pkill -P $$ -x bug; exit 0' TERM INT HUP
+
+while true; do
+  if [ "$(pgrep -c -P $$ -x bug)" -lt "$MAX_CHILDREN" ]; then
+    "$MONSTERS/bug" infinity &
+  fi
+  # wait로 기다려야 TERM을 받자마자 trap이 실행된다.
+  sleep 4 &
+  wait $!
+done

@@ -2,6 +2,9 @@
 # 플레이어가 게임 안 터미널에 치는 명령어는 모두 이 컨테이너의 진짜 bash에서 실행된다.
 FROM ubuntu:24.04
 
+# 이미지 내용이 바뀌면 이 값을 올리고 engine의 dotshell.player.image 태그도 맞춘다.
+LABEL dotshell.image-version="3"
+
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -9,8 +12,16 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      bash-completion ca-certificates git less nano tree vim-tiny \
+      bash-completion ca-certificates git less nano procps psmisc tree vim-tiny \
  && rm -rf /var/lib/apt/lists/*
+
+# 몬스터 = 이름 붙은 진짜 실행 파일. ps 에 그 이름으로 보이고 kill / pkill 로 잡힌다.
+#  - bug       : sleep 을 복사한 것 (CPU를 쓰지 않음)
+#  - bug-queen : 새끼 bug 를 계속 낳는 부모 프로세스
+COPY monsters/ /usr/local/lib/dotshell/monsters/
+COPY watchtower rift /usr/local/lib/dotshell/
+RUN cp /bin/sleep /usr/local/lib/dotshell/monsters/bug \
+ && chmod 755 /usr/local/lib/dotshell/monsters/* /usr/local/lib/dotshell/watchtower /usr/local/lib/dotshell/rift
 
 # 명령 종료 신호 훅: 프롬프트가 뜨기 직전마다 엔진에 신호를 보낸다.
 COPY dotshell-hook.sh /etc/dotshell/hook.sh
@@ -28,8 +39,8 @@ RUN mkdir -p /home/hero/dungeon/vault /home/hero/dungeon/hall \
  && echo '반짝이는 숨겨진 보물' > /home/hero/dungeon/.secret \
  && chown -R hero:hero /home/hero
 
-USER hero
 WORKDIR /home/hero
 
-# 엔진이 exec로 bash를 붙일 때까지 컨테이너를 살려 둔다.
-CMD ["sleep", "infinity"]
+# 첫 프로세스는 root 소유의 균열. 엔진의 소환 요청을 받아 몬스터를 낳는다.
+# 플레이어의 bash는 엔진이 exec로 hero 사용자로 붙인다.
+CMD ["/usr/local/lib/dotshell/rift"]
