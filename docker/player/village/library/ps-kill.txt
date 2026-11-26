@@ -1,0 +1,7 @@
+[주문서: 프로세스 사냥]
+ps aux              돌아가는 프로세스 전부와 PID를 본다
+ps aux | grep bug   그중 bug 가 들어간 줄만 본다
+kill PID            그 프로세스를 끈다 (정중한 종료 신호 TERM)
+kill -9 PID         말을 안 들으면 강제로 끈다 (KILL)
+pkill 이름          이름으로 찾아 한꺼번에 끈다
+pstree -p           부모-자식 관계를 나무로 본다

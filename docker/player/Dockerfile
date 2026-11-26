@@ -3,7 +3,7 @@
 FROM ubuntu:24.04
 
 # 이미지 내용이 바뀌면 이 값을 올리고 engine의 dotshell.player.image 태그도 맞춘다.
-LABEL dotshell.image-version="3"
+LABEL dotshell.image-version="4"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -32,11 +32,16 @@ RUN echo '. /etc/dotshell/hook.sh' >> /etc/skel/.bashrc \
  && (userdel -r ubuntu 2>/dev/null || true) \
  && useradd -m -s /bin/bash hero
 
-# 프로토타입용 작은 던전
+# 마을: 홈 디렉터리 = 마을 광장, 하위 디렉터리 = 건물
+#  - library : 명령어 주문서(실제 사용법)를 읽는 도서관
+#  - dungeon : 탐험용 던전
+#  - rift    : 균열. cd rift 로 들어가면 전투(스테이지)가 시작된다
+COPY village/ /home/hero/
 RUN mkdir -p /home/hero/dungeon/vault /home/hero/dungeon/hall \
  && echo '금고 열쇠다. vault 안에 넣어야 문이 열린다.' > /home/hero/dungeon/key.txt \
- && echo '견습 관리자여, 서버 왕국에 온 것을 환영한다.' > /home/hero/welcome.txt \
  && echo '반짝이는 숨겨진 보물' > /home/hero/dungeon/.secret \
+ && echo '광장 분수 밑에 묻어 둔 지도. 던전 금고(vault)를 찾아라.' > /home/hero/.old_map \
+ && find /home/hero -type f -exec chmod 644 {} + \
  && chown -R hero:hero /home/hero
 
 WORKDIR /home/hero
