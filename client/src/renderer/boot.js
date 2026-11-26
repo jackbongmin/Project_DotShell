@@ -46,6 +46,11 @@
       if (!data || data.startsWith('\u001b')) return; // 방향키 등
       active().onTyping(data);
     },
+    setPaused(paused) {
+      const scene = active();
+      if (paused) scene.scene.pause();
+      else scene.scene.resume();
+    },
     reset() {
       if (mode !== 'village') DS.switchScene('village');
       ready.village.resetAll();

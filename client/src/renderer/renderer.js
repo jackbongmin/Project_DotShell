@@ -41,6 +41,7 @@
   const unseen = new Set(); // 해금됐지만 아직 주문서에서 못 본 카드
   let toastTimer = 0;
   let inRift = false;
+  let paused = false;
   let wave = { label: '준비 중', total: 0 };
 
   // 마을에서 쓰는 기본 주문. 처음 성공하면 주문서에 새겨진다 (직접 해 봐야 배운다).
@@ -167,7 +168,8 @@
   function renderCards() {
     const box = $('cards');
     box.textContent = '';
-    for (const [name, card] of Object.entries(allCards())) {
+    const entries = Object.entries(allCards()).sort(([a], [b]) => Number(unlocked.has(b)) - Number(unlocked.has(a)));
+    for (const [name, card] of entries) {
       const el = document.createElement('div');
       const open = unlocked.has(name);
       el.className = 'cmd-card' + (open ? '' : ' locked') + (unseen.has(name) ? ' new' : '');
@@ -187,6 +189,12 @@
 
   function toggleSpellbook(force) {
     const open = force === undefined ? !spellbookOpen() : force;
+    if (open !== paused) {
+      // 주문서를 펼친 동안은 일시정지: 전투 시간과 몬스터(SIGSTOP)가 멈추고 입력도 막힌다.
+      paused = open;
+      send({ type: open ? 'pause' : 'resume' });
+      window.DotGame.setPaused(open);
+    }
     if (open) {
       renderCards();
       $('spellbook').classList.remove('hidden');
@@ -306,6 +314,7 @@
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
+      if (paused) toggleSpellbook(false);
       term.reset();
       window.DotGame.reset();
       result.classList.add('hidden');
@@ -329,6 +338,10 @@
   }
 
   term.onData((data) => {
+    if (paused) {
+      showToast('일시정지 중이에요 — F1 또는 Esc 로 돌아가면 입력할 수 있어요');
+      return;
+    }
     send({ type: 'input', data });
     window.DotGame.onTyping(data);
   });

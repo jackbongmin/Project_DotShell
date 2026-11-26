@@ -192,6 +192,14 @@ body {
 .book header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
 .book h2 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 18px; color: #3b2a1a; }
 .book .hint { font-size: 12px; color: #8a6a3a; }
+.pause-badge {
+  padding: 1px 8px;
+  font-size: 13px;
+  color: #fff;
+  background: #3b2a1a;
+  animation: pause-blink 1.2s steps(2) infinite;
+}
+@keyframes pause-blink { 50% { opacity: 0.45; } }
 #cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .cmd-card {
   padding: 8px 10px;

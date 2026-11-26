@@ -146,7 +146,8 @@
       if (this.prevHp !== null && w.hp < this.prevHp - 0.01) this.onCoreHit();
       this.prevHp = w.hp;
 
-      if (w.phase === 'intro') this.waveText.setText(`준비 ${Math.ceil(w.phaseRemainingMs / 1000)}초`);
+      if (w.paused) this.waveText.setText('일시정지');
+      else if (w.phase === 'intro') this.waveText.setText(`준비 ${Math.ceil(w.phaseRemainingMs / 1000)}초`);
       else if (w.phase === 'break') this.waveText.setText(`다음 웨이브 ${Math.ceil(w.phaseRemainingMs / 1000)}초`);
       else this.waveText.setText(`WAVE ${w.wave}/${w.waveTotal}  처치 ${w.kills}`);
 
