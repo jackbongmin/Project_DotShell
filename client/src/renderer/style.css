@@ -133,6 +133,8 @@ body {
 .icon { width: 24px; height: 24px; image-rendering: pixelated; }
 #quest-title { color: var(--text); margin-bottom: 4px; }
 .goals { margin: 0; padding-left: 18px; line-height: 1.7; color: var(--l0); }
+.goals .done { color: var(--ok); text-decoration: line-through; }
+.goals code { font-family: inherit; color: var(--code); }
 .daemon-card p { margin: 0; line-height: 1.6; color: #c9f7ff; min-height: 3.2em; }
 
 /* ── 명령어 주문서 (F1 팝업) ─────────────────────────────── */

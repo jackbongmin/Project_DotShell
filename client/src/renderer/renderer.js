@@ -37,9 +37,32 @@
   let ws = null;
   let fatal = false;
   let stage = null;
-  const unlocked = new Set();
+  const unlocked = new Set(['ls', 'cd']);
   const unseen = new Set(); // 해금됐지만 아직 주문서에서 못 본 카드
   let toastTimer = 0;
+  let inRift = false;
+  let wave = { label: '준비 중', total: 0 };
+
+  // 마을에서 쓰는 기본 주문. 처음 성공하면 주문서에 새겨진다 (직접 해 봐야 배운다).
+  const VILLAGE_CARDS = {
+    ls: { usage: 'ls -al', desc: '주변을 본다. -a 숨은 것까지, -l 자세히' },
+    cd: { usage: 'cd <이름> · cd ..', desc: '건물(디렉터리)에 들어가고 나온다' },
+    pwd: { usage: 'pwd', desc: '지금 있는 곳의 전체 경로' },
+    cat: { usage: 'cat <파일>', desc: '두루마리(파일)를 읽는다' },
+    touch: { usage: 'touch <파일>', desc: '빈 파일을 만든다' },
+    mkdir: { usage: 'mkdir <이름>', desc: '새 건물(디렉터리)을 짓는다' },
+    cp: { usage: 'cp <원본> <사본>', desc: '복사한다 (디렉터리는 cp -r)' },
+    mv: { usage: 'mv <원본> <대상>', desc: '옮기거나 이름을 바꾼다' },
+    rm: { usage: 'rm <파일>', desc: '부순다 (디렉터리는 rm -r). 되돌릴 수 없다' },
+  };
+  const allCards = () => ({ ...VILLAGE_CARDS, ...(stage ? stage.cards : {}) });
+
+  // 마을 퀘스트
+  const goals = [
+    { id: 'board', text: '게시판 읽기', how: 'cat welcome.txt', done: false },
+    { id: 'library', text: '도서관 가 보기', how: 'cd library', done: false },
+    { id: 'rift', text: '균열에 들어가기', how: 'cd rift', done: false },
+  ];
 
   // ── 공용 ──────────────────────────────────────────────────────────
   function showOverlay(text, isError) {
@@ -71,11 +94,80 @@
     li.scrollIntoView({ block: 'nearest' });
   }
 
+  function renderQuest() {
+    const list = $('goals');
+    list.textContent = '';
+    const add = (html, done) => {
+      const li = document.createElement('li');
+      li.innerHTML = html;
+      if (done) li.className = 'done';
+      list.appendChild(li);
+    };
+    if (inRift && stage) {
+      $('quest-title').textContent = `${stage.id} ${stage.title}`;
+      add('서버 코어를 지켜라');
+      add(`웨이브 ${wave.label} / ${wave.total}`);
+    } else {
+      $('quest-title').textContent = '마을 탐험';
+      goals.forEach((g) => add(`${g.text} <code>${g.how}</code>`, g.done));
+    }
+    $('stage-name').textContent = inRift && stage ? `${stage.id} ${stage.title}` : '마을';
+  }
+
+  function checkGoals(msg) {
+    const { word, args } = DS.parseCommand(msg.command);
+    const mark = (id) => {
+      const g = goals.find((x) => x.id === id);
+      if (g && !g.done) {
+        g.done = true;
+        showToast(`퀘스트 완료: ${g.text}`);
+      }
+    };
+    if (msg.exitCode === 0 && word === 'cat' && args.some((a) => /welcome\.txt$/.test(a))) mark('board');
+    if (msg.cwd === `${DS.HOME}/library`) mark('library');
+    if (DS.inRift(msg.cwd)) mark('rift');
+  }
+
+  /** 처음 성공한 기본 명령은 주문서에 새긴다. */
+  function learn(msg) {
+    if (!msg.newCommand || msg.exitCode !== 0) return;
+    const { word } = DS.parseCommand(msg.command);
+    if (VILLAGE_CARDS[word] && !unlocked.has(word)) unlockCards([word]);
+  }
+
+  function unlockCards(names) {
+    const fresh = names.filter((c) => !unlocked.has(c));
+    if (!fresh.length) return;
+    fresh.forEach((c) => { unlocked.add(c); unseen.add(c); });
+    updateBadge();
+    if (spellbookOpen()) renderCards();
+    const cards = allCards();
+    showToast(`새 주문 획득! ${fresh.map((c) => cards[c].usage).join(', ')}  —  F1 로 주문서 열기`);
+    const btn = $('spellbook-btn');
+    btn.classList.remove('pulse');
+    void btn.offsetWidth; // 애니메이션 다시 시작
+    btn.classList.add('pulse');
+  }
+
+  /** 방금 끝난 명령의 출력(cat 내용 등)을 터미널 화면에서 읽어 온다. */
+  function extractOutput(command, max = 12) {
+    const buf = term.buffer.active;
+    const end = buf.baseY + buf.cursorY;
+    const lines = [];
+    for (let i = end - 1; i >= Math.max(0, end - 200); i--) {
+      const line = buf.getLine(i);
+      const text = line ? line.translateToString(true) : '';
+      if (text.endsWith(`$ ${command}`) || text.includes(`$ ${command}`)) break;
+      if (/^\S+@dotshell:.*\$ ?$/.test(text)) continue; // 새 프롬프트 줄
+      lines.unshift(text);
+    }
+    return lines.slice(0, max);
+  }
+
   function renderCards() {
-    if (!stage) return;
     const box = $('cards');
     box.textContent = '';
-    for (const [name, card] of Object.entries(stage.cards)) {
+    for (const [name, card] of Object.entries(allCards())) {
       const el = document.createElement('div');
       const open = unlocked.has(name);
       el.className = 'cmd-card' + (open ? '' : ' locked') + (unseen.has(name) ? ' new' : '');
@@ -120,35 +212,23 @@
 
   function onStage(msg) {
     stage = msg;
-    unlocked.clear();
-    unseen.clear();
     msg.startCards.forEach((c) => unlocked.add(c));
-    updateBadge();
-    $('stage-name').textContent = `${msg.id} ${msg.title}`;
-    $('quest-title').textContent = `${msg.id} ${msg.title}`;
-    $('goal-wave').textContent = `웨이브 0 / ${msg.waveTotal}`;
+    wave = { label: '준비 중', total: msg.waveTotal };
     result.classList.add('hidden');
-    renderCards();
+    renderQuest();
   }
 
   function onAnnounce(msg) {
     $('daemon-line').textContent = msg.text;
-    const fresh = (msg.unlock || []).filter((c) => !unlocked.has(c));
-    if (!fresh.length) return;
-    fresh.forEach((c) => { unlocked.add(c); unseen.add(c); });
-    updateBadge();
-    if (spellbookOpen()) renderCards();
-    const names = fresh.map((c) => stage.cards[c].usage).join(', ');
-    showToast(`새 주문 획득! ${names}  —  F1 로 주문서 열기`);
-    const btn = $('spellbook-btn');
-    btn.classList.remove('pulse');
-    void btn.offsetWidth; // 애니메이션 다시 시작
-    btn.classList.add('pulse');
+    unlockCards(msg.unlock || []);
   }
 
   function onWorld(msg) {
     const label = msg.phase === 'intro' ? '준비 중' : msg.phase === 'break' ? '쉬는 중' : `${msg.wave}`;
-    $('goal-wave').textContent = `웨이브 ${label} / ${msg.waveTotal}`;
+    if (label !== wave.label) {
+      wave = { label, total: msg.waveTotal };
+      renderQuest();
+    }
   }
 
   function onResult(msg) {
@@ -183,11 +263,23 @@
         fatal = true;
         showOverlay(msg.message, true);
         break;
-      case 'state':
+      case 'state': {
         $('cwd').textContent = msg.cwd;
-        if (msg.newCommand) addLog(msg.command, msg.exitCode);
+        if (msg.newCommand) {
+          addLog(msg.command, msg.exitCode);
+          if (/^(cat|less|more|head|tail)$/.test(DS.parseCommand(msg.command).word)) msg.output = extractOutput(msg.command);
+        }
+        const nowInRift = DS.inRift(msg.cwd);
+        if (nowInRift !== inRift) {
+          inRift = nowInRift;
+          if (!inRift) result.classList.add('hidden');
+        }
+        checkGoals(msg);
+        learn(msg);
+        renderQuest();
         window.DotGame.onState(msg);
         break;
+      }
       case 'stage':
         onStage(msg);
         window.DotGame.onStage(msg);
@@ -272,5 +364,6 @@
     term.focus();
   });
 
+  renderQuest();
   connect();
 })();
