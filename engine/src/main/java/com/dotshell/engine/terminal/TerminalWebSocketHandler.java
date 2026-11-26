@@ -29,6 +29,7 @@ import tools.jackson.databind.json.JsonMapper;
  * {"type":"input",  "data":"ls\r"}
  * {"type":"resize", "cols":120, "rows":30}
  * {"type":"restart"}   스테이지 다시 시작
+ * {"type":"pause"} / {"type":"resume"}   주문서(F1)를 여닫을 때 전투 일시정지·재개
  * </pre>
  */
 @Component
@@ -72,6 +73,8 @@ public class TerminalWebSocketHandler extends AbstractWebSocketHandler {
 				case "input" -> terminal.write(node.path("data").asString());
 				case "resize" -> terminal.resize(node.path("cols").asInt(), node.path("rows").asInt());
 				case "restart" -> terminal.restartStage();
+				case "pause" -> terminal.setPaused(true);
+				case "resume" -> terminal.setPaused(false);
 				default -> log.debug("알 수 없는 메시지: {}", message.getPayload());
 			}
 		} catch (JacksonException e) {

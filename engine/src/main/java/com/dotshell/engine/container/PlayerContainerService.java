@@ -172,6 +172,11 @@ public class PlayerContainerService {
 		execCaptureAs(containerId, "root", cmd.toArray(String[]::new));
 	}
 
+	/** 모든 몬스터에게 신호를 보낸다. 일시정지는 STOP, 재개는 CONT. */
+	public void signalMonsters(String containerId, String signal) {
+		execCaptureAs(containerId, "root", "pkill", "-" + signal, "-f", MONSTER_DIR);
+	}
+
 	/** 모든 몬스터를 강제로 없앤다 (패배·재시작 정리용). */
 	public void killAllMonsters(String containerId) {
 		execCaptureAs(containerId, "root", "pkill", "-KILL", "-f", MONSTER_DIR);

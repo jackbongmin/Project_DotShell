@@ -224,6 +224,19 @@ class TerminalSession {
 		}
 	}
 
+	/** 주문서(F1)를 여는 동안 전투를 멈춘다. 마을에서는 할 일이 없다. */
+	void setPaused(boolean paused) {
+		StageRunner stageRunner = runner;
+		if (stageRunner == null) {
+			return;
+		}
+		if (paused) {
+			stageRunner.pause();
+		} else {
+			stageRunner.resume();
+		}
+	}
+
 	void restartStage() {
 		StageRunner stageRunner = runner;
 		if (stageRunner != null) {

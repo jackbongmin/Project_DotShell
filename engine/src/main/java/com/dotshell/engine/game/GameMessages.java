@@ -25,6 +25,7 @@ public final class GameMessages {
 	public record World(
 			String type,
 			String phase,
+			boolean paused,
 			int wave,
 			int waveTotal,
 			double hp,

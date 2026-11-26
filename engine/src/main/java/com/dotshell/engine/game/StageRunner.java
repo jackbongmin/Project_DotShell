@@ -43,7 +43,7 @@ public class StageRunner {
 	private static final class Tracked {
 		final String kind;
 		final int ppid;
-		final long firstSeen;
+		long firstSeen; // 일시정지가 끝나면 멈춰 있던 만큼 뒤로 민다
 		final double startProgress;
 
 		Tracked(String kind, int ppid, long firstSeen, double startProgress) {
@@ -73,6 +73,8 @@ public class StageRunner {
 	private int kills;
 	private int commands;
 	private long ignoreNewUntil;
+	private boolean paused;
+	private long pausedAt;
 	private final Deque<PendingSpawn> spawnQueue = new ArrayDeque<>();
 	private final Map<Integer, Tracked> monsters = new LinkedHashMap<>();
 
@@ -99,8 +101,50 @@ public class StageRunner {
 		});
 	}
 
+	/**
+	 * 일시정지: 몬스터 프로세스를 SIGSTOP 으로 진짜로 얼리고, 진행 시간도 멈춘다.
+	 * (여왕도 얼어서 새끼를 낳지 못한다)
+	 */
+	public void pause() {
+		ticker.execute(() -> {
+			if (paused || phase == Phase.VICTORY || phase == Phase.DEFEAT) {
+				return;
+			}
+			paused = true;
+			pausedAt = System.currentTimeMillis();
+			containers.signalMonsters(containerId, "STOP");
+			sendWorld(pausedAt);
+		});
+	}
+
+	/** 재개: 멈춰 있던 시간만큼 모든 시각을 뒤로 밀고 SIGCONT 로 깨운다. */
+	public void resume() {
+		ticker.execute(this::doResume);
+	}
+
+	private void doResume() {
+		if (!paused) {
+			return;
+		}
+		long now = System.currentTimeMillis();
+		long shift = now - pausedAt;
+		phaseStartedAt += shift;
+		stageStartedAt += shift;
+		lastSpawnAt += shift;
+		lastTickAt = now;
+		ignoreNewUntil += shift;
+		List<PendingSpawn> pendingSpawns = new ArrayList<>(spawnQueue);
+		spawnQueue.clear();
+		pendingSpawns.forEach(s -> spawnQueue.addLast(new PendingSpawn(s.kind(), s.dueAt() + shift)));
+		monsters.values().forEach(m -> m.firstSeen += shift);
+		paused = false;
+		containers.signalMonsters(containerId, "CONT");
+		sendWorld(now);
+	}
+
 	public void restart() {
 		ticker.execute(() -> {
+			doResume();
 			containers.killAllMonsters(containerId);
 			reset();
 			ignoreNewUntil = System.currentTimeMillis() + 1200;
@@ -123,6 +167,7 @@ public class StageRunner {
 	private void reset() {
 		long now = System.currentTimeMillis();
 		phase = Phase.INTRO;
+		paused = false;
 		phaseStartedAt = now;
 		stageStartedAt = now;
 		lastTickAt = now;
@@ -153,6 +198,13 @@ public class StageRunner {
 
 	private void tick() {
 		long now = System.currentTimeMillis();
+		if (paused) {
+			lastTickAt = now;
+			if (now - lastWorldAt >= WORLD_EVERY_MS) {
+				sendWorld(now);
+			}
+			return;
+		}
 		double dt = (now - lastTickAt) / 1000.0;
 		lastTickAt = now;
 
@@ -288,13 +340,14 @@ public class StageRunner {
 		log.info("스테이지 {} {}: 명령 {}개, 처치 {}", stage.id(), victory ? "승리" : "패배", commands, kills);
 	}
 
-	private void sendWorld(long now) {
-		lastWorldAt = now;
+	private void sendWorld(long realNow) {
+		lastWorldAt = realNow;
+		long now = paused ? pausedAt : realNow; // 멈춘 동안은 시계도 멈춘 것으로 계산
 		List<GameMessages.MonsterView> views = new ArrayList<>();
 		for (Map.Entry<Integer, Tracked> e : monsters.entrySet()) {
 			Tracked m = e.getValue();
 			double p = progress(m, now);
-			double speed = p >= 1.0 ? 0 : 1000.0 / (stage.monsters().get(m.kind).travelSeconds() * 1000);
+			double speed = p >= 1.0 || paused ? 0 : 1000.0 / (stage.monsters().get(m.kind).travelSeconds() * 1000);
 			views.add(new GameMessages.MonsterView(e.getKey(), m.ppid, m.kind, p, speed, p >= 1.0));
 		}
 		long remaining = switch (phase) {
@@ -302,7 +355,7 @@ public class StageRunner {
 			case BREAK -> (long) (stage.breakSeconds() * 1000) - (now - phaseStartedAt);
 			default -> 0;
 		};
-		send.accept(new GameMessages.World("world", phase.name().toLowerCase(), waveIndex + 1,
+		send.accept(new GameMessages.World("world", phase.name().toLowerCase(), paused, waveIndex + 1,
 				stage.waves().size(), hp, stage.coreHp(), Math.max(0, remaining), views, kills, commands,
 				now - stageStartedAt));
 	}
