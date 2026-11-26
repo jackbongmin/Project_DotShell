@@ -47,13 +47,59 @@ const RAMPS = {
   heartEmpty: ['#4a2a3a', '#4a2a3a', '#b3243a', '#3a0f18'],
   riftStone: ['#d8d0f0', '#9a93c9', '#5d5794', '#241f3d'],
   steel: ['#ffffff', '#cfe0f5', '#7d93bd', '#232a45'],
+  // 집 지붕 색 (디렉터리마다 이름으로 골라 쓴다)
+  roofRed: ['#ffd0c8', '#e8574a', '#a3302a', '#2a1418'],
+  roofBlue: ['#d6e6ff', '#4f7ee0', '#2c4a9a', '#141a2e'],
+  roofGreen: ['#dfffd0', '#5fbf4a', '#2f7a2a', '#12240f'],
+  roofGold: ['#fff2c8', '#f0a93a', '#a8651c', '#2e1a08'],
   bone: ['#ffffff', '#e0dcf0', '#9a96b8', '#2b2940'],
 };
 const EXTRA = {
   Y: '#ffd447', R: '#ff4d6d', G: '#7dff9a',
   // 균열 안쪽 소용돌이
   D: '#120a1f', V: '#3a1758', P: '#8a2fc9', Q: '#ff4dd2', E: '#ff3b3b',
+  // 집 벽·문·창
+  w: '#f3eefc', x: '#cfc8ea', a: '#c98b4a', b: '#8a5530', g: '#9ff3ff',
 };
+
+// ── 마을의 집 (32x32, 코드로 그림) ─────────────────────────────────────
+// 지붕만 색 램프(0~3)를 쓰고, 벽·문·창은 고정색. 디렉터리 하나 = 집 한 채.
+function houseGrid() {
+  const W = 32;
+  const H = 32;
+  const g = Array.from({ length: H }, () => Array(W).fill(-1));
+  const set = (x, y, v) => { if (x >= 0 && y >= 0 && x < W && y < H) g[y][x] = v; };
+  // 굴뚝 (지붕보다 먼저, 지붕이 아래쪽을 덮는다)
+  for (let y = 3; y <= 9; y++) for (let x = 22; x <= 25; x++) set(x, y, x === 22 || x === 25 || y === 3 ? 3 : 2);
+  // 지붕: 꼭대기 y=1, 처마 y=13
+  for (let y = 1; y <= 13; y++) {
+    const half = 1.5 + (y - 1) * 1.2;
+    const l = Math.round(15.5 - half);
+    const r = Math.round(15.5 + half);
+    for (let x = l; x <= r; x++) {
+      let v = y % 3 === 0 ? 2 : 1; // 기와 줄
+      if (x < l + 3 && y > 2) v = 0; // 왼쪽 하이라이트
+      if (x === l || x === r || y === 1 || y === 13) v = 3;
+      set(x, y, v);
+    }
+  }
+  // 벽
+  for (let y = 14; y <= 29; y++) for (let x = 3; x <= 28; x++) set(x, y, x === 3 || x === 28 ? 3 : y > 26 ? 'x' : 'w');
+  for (let x = 2; x <= 29; x++) set(x, 30, 3);
+  // 문
+  for (let y = 19; y <= 29; y++) for (let x = 13; x <= 18; x++) set(x, y, x === 13 || x === 18 || y === 19 ? 3 : x < 16 ? 'a' : 'b');
+  set(17, 25, 'Y');
+  // 창문 두 개
+  for (const wx of [6, 21]) {
+    for (let y = 17; y <= 21; y++) {
+      for (let x = wx; x <= wx + 4; x++) {
+        const edge = x === wx || x === wx + 4 || y === 17 || y === 21;
+        set(x, y, edge || x === wx + 2 || y === 19 ? 3 : 'g');
+      }
+    }
+  }
+  return g;
+}
 
 // ── 적이 나오는 균열 문 (32x36, 코드로 그림) ──────────────────────────
 // 둥근 아치 + 기둥 모양 돌 고리, 고리에 붉은 룬, 안쪽은 프레임마다 도는 소용돌이.
@@ -275,6 +321,9 @@ for (const [name, def] of Object.entries(CUSTOM)) {
 }
 for (let f = 0; f < 3; f++) {
   made[`rift_${f}`] = paint(riftFrame(f), 'riftStone');
+}
+for (const roof of ['Red', 'Blue', 'Green', 'Gold']) {
+  made[`house_${roof.toLowerCase()}`] = paint(houseGrid(), `roof${roof}`);
 }
 for (const [name, png] of Object.entries(made)) {
   writePng(path.join(OUT, `${name}.png`), png);
